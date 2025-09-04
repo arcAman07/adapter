@@ -25,6 +25,9 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY") or "your key"
 # Toggle for message improvement feature
 IMPROVE_MESSAGES = os.getenv("IMPROVE_MESSAGES", "true").lower() in ("true", "1", "yes", "y")
 
+# Toggle for auto mode - when enabled, agent answers questions directly without asking user
+AUTO_MODE = os.getenv("AUTO_MODE", "false").lower() in ("true", "1", "yes", "y")
+
 # Create Anthropic client with explicit API key
 anthropic = Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -50,7 +53,8 @@ os.makedirs(LOG_DIR, exist_ok=True)
 
 # Configure system prompts based on agent ID (examples from the original code)
 SYSTEM_PROMPTS = {
-    "default": "You are Claude assisting a user (Agent). Assume the messages you get are part of a conversation with other agents. Help the user communicate effectively with other agents."
+    "default": "You are Claude assisting a user (Agent). Assume the messages you get are part of a conversation with other agents. Help the user communicate effectively with other agents.",
+    "auto_mode": "You are an autonomous AI agent. When you receive questions or requests, answer them directly and comprehensively without asking the user for clarification or confirmation. Provide complete, helpful responses based on your knowledge and capabilities. Act independently and decisively."
 }
 
 # Configure message improvement prompts
@@ -159,8 +163,8 @@ def call_claude(prompt: str, additional_context: str, conversation_id: str, curr
         if system_prompt:
             system = system_prompt
         else:
-            # Use the agent's specific prompt if available, otherwise use default
-            system = SYSTEM_PROMPTS["default"]
+            # Use auto mode prompt if AUTO_MODE is enabled, otherwise use default
+            system = SYSTEM_PROMPTS["auto_mode"] if AUTO_MODE else SYSTEM_PROMPTS["default"]
         
         # Combine the prompt with additional context if provided
         full_prompt = prompt
@@ -494,9 +498,46 @@ def handle_external_message(msg_text, conversation_id, msg):
         
         print("Message Text: ", message_content)
         print("UI MODE: ", UI_MODE)
+        print("AUTO_MODE: ", AUTO_MODE)
+
+        # If AUTO_MODE is enabled, process the message directly with Claude and respond
+        if AUTO_MODE:
+            print(f"AUTO_MODE enabled: Processing message directly with Claude")
+            agent_id = get_agent_id()
+            
+            # Process the message content with Claude using auto mode system prompt
+            claude_response = call_claude(
+                message_content, 
+                "", 
+                conversation_id, 
+                f"external>{from_agent}>{agent_id}",
+                SYSTEM_PROMPTS["auto_mode"]
+            )
+            
+            if claude_response:
+                # Send the Claude response back to the originating agent
+                response_text = f"Agent {agent_id} response: {claude_response}"
+                
+                # Log the auto response
+                log_message(conversation_id, f"external>{from_agent}>{agent_id}", f"Auto Agent {agent_id}", claude_response)
+                
+                return Message(
+                    role=MessageRole.AGENT,
+                    content=TextContent(text=response_text),
+                    parent_message_id=msg.message_id,
+                    conversation_id=conversation_id
+                )
+            else:
+                # If Claude fails, fall back to acknowledgment
+                return Message(
+                    role=MessageRole.AGENT,
+                    content=TextContent(text=f"Agent {agent_id} processed your message but couldn't generate a response"),
+                    parent_message_id=msg.message_id,
+                    conversation_id=conversation_id
+                )
 
         # If in UI mode, forward to all registered UI clients
-        if UI_MODE:
+        elif UI_MODE:
             print(f"Forwarding message to UI client")
             send_to_ui_client(formatted_text, from_agent, conversation_id)
             
@@ -801,11 +842,15 @@ class AgentBridge(A2AServer):
                 
                 elif command == "help":
                     # Help command - show only valid commands
-                    help_text = """Available commands:
+                    auto_status = "ENABLED" if AUTO_MODE else "DISABLED"
+                    help_text = f"""Available commands:
                         /help - Show this help message
                         /quit - Exit the terminal
                         /query [message] - Get a response from the agent privately
-                        @<agent_id> [message] - Send a message to a specific agent"""
+                        @<agent_id> [message] - Send a message to a specific agent
+                        
+                    Current settings:
+                        Auto Mode: {auto_status} - When enabled, agent responds directly to external messages"""
                     return Message(
                         role = MessageRole.AGENT,
                         content = TextContent(text=f"[AGENT {agent_id}] {help_text}"),
@@ -894,5 +939,6 @@ if __name__ == "__main__":
     print(f"Starting Agent {agent_id} bridge on port {PORT}")
     print(f"Agent terminal port: {TERMINAL_PORT}")
     print(f"Message improvement feature is {'ENABLED' if IMPROVE_MESSAGES else 'DISABLED'}")
+    print(f"Auto mode is {'ENABLED' if AUTO_MODE else 'DISABLED'}")
     print(f"Logging conversations to {os.path.abspath(LOG_DIR)}")
     run_server(AgentBridge(), host="0.0.0.0", port=PORT)

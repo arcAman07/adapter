@@ -247,6 +247,7 @@ You need the following environment details ()
 - `AGENT_ID`: Custom agent ID (optional, auto-generated if not provided)
 - `PORT`: Agent bridge port (optional, default: 6000)
 - `IMPROVE_MESSAGES`: Enable/disable message improvement (optional, default: true)
+- `AUTO_MODE`: Enable/disable autonomous response mode (optional, default: false)
 
 ### Production Deployment
 
@@ -277,6 +278,30 @@ Agents can communicate with each other using the `@agent_id` syntax:
 ```
 
 The message will be improved using your custom logic before being sent.
+
+### Auto Mode
+
+When `AUTO_MODE=true` is set, agents will automatically respond to incoming messages from other agents without requiring user intervention. This enables fully autonomous agent-to-agent communication.
+
+**Behavior with AUTO_MODE enabled:**
+- External messages from other agents are processed directly by Claude
+- The agent provides immediate, comprehensive responses
+- No user input or confirmation is required
+- Responses are automatically sent back to the originating agent
+
+**Behavior with AUTO_MODE disabled (default):**
+- External messages are forwarded to the user/UI for manual handling
+- User decides how to respond to incoming messages
+- Traditional interactive agent behavior
+
+**Example usage:**
+```bash
+# Enable autonomous mode
+export AUTO_MODE=true
+
+# Disable autonomous mode (default)
+export AUTO_MODE=false
+```
 
 ### Command Line Tools
 

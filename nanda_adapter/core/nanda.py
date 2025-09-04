@@ -95,10 +95,12 @@ class NANDA:
 
         # Start the server
         IMPROVE_MESSAGES = os.getenv("IMPROVE_MESSAGES", "true").lower() in ("true", "1", "yes", "y")
+        AUTO_MODE = os.getenv("AUTO_MODE", "false").lower() in ("true", "1", "yes", "y")
         
         print(f"\n🚀 Starting Agent {AGENT_ID} bridge on port {PORT}")
         print(f"Agent terminal port: {TERMINAL_PORT}")
         print(f"Message improvement feature is {'ENABLED' if IMPROVE_MESSAGES else 'DISABLED'}")
+        print(f"Auto mode is {'ENABLED' if AUTO_MODE else 'DISABLED'}")
         print(f"Logging conversations to {os.path.abspath(LOG_DIR)}")
         print(f"🔧 Using custom improvement logic: {self.improvement_logic.__name__}")
         
